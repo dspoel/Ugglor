@@ -3,17 +3,21 @@
 import argparse, json, os, requests
 from urllib.request import urlretrieve
 
-def download(url:str, filenm:str, species:str, sex:str):
+def download(url:str, infile:str, outfile:str, species:str, sex:str, verbose:bool)->bool:
     os.makedirs(species, exist_ok=True)
     tdir = f"{species}/{sex}"
     os.makedirs(tdir, exist_ok=True)
     os.chdir(tdir)
+    success = True
     try:
-        print(f"Will download {url}/{filenm}")
-        urlretrieve(url, filenm)
+        if verbose:
+            print(f"Will download {url} as {outfile}")
+        urlretrieve(url, outfile)
     except:
-        print(f"File {url}/{filenm} not found") 
+        print(f"File {url} not found") 
+        success = False
     os.chdir("../..")
+    return success
 
 def fetch(species:str, exclude:list, mykey:str, fetch:int, verbose:bool):
     per_page = 100
@@ -24,10 +28,10 @@ def fetch(species:str, exclude:list, mykey:str, fetch:int, verbose:bool):
     sexes   = { "male": 0, "female": 0, "uncertain": 0, "female, male": 0, "empty": 0, 'female, male, uncertain': 0, 'female, uncertain': 0, 'male, uncertain': 0 }
     recs    = "recordings"
     # We do not know how many recordings there are for each species, so use a while loop.
-    page    = 0
-    response = requests.get(baseurl)
-    data     = response.json()
-    nfetched = 0
+    page       = 0
+    response   = requests.get(baseurl)
+    data       = response.json()
+    nfetched   = 0
     while page*per_page < int(data["numRecordings"]):
         if not recs in data:
             continue
@@ -50,8 +54,9 @@ def fetch(species:str, exclude:list, mykey:str, fetch:int, verbose:bool):
             # Now try and download if requested
             if fetch == -1 or nfetched < fetch:
                 if rec[sex] in [ "male", "female" ]:
-                    download(rec["file"], rec["file-name"], species, rec[sex])
-                    nfetched += 1
+                    outfile = ("%s%05d.%s" % ( rec[sex], sexes[rec[sex]], rec["file-name"][-3:] ) )
+                    if download(rec["file"], rec["file-name"], outfile, species, rec[sex], verbose):
+                        nfetched += 1
         page    += 1
         # URL for the next page to fetch
         myurl    = baseurl + f"&page={page}"

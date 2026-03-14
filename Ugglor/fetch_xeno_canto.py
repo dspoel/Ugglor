@@ -1,10 +1,23 @@
 #!/usr/bin/env python3
 
-import argparse, json, requests
+import argparse, json, os, requests
+from urllib.request import urlretrieve
 
-def fetch(species:str, exclude:list, mykey:str, verbose:bool):
+def download(url:str, filenm:str, species:str, sex:str):
+    os.makedirs(species, exist_ok=True)
+    tdir = f"{species}/{sex}"
+    os.makedirs(tdir, exist_ok=True)
+    os.chdir(tdir)
+    try:
+        print(f"Will download {url}/{filenm}")
+        urlretrieve(url, filenm)
+    except:
+        print(f"File {url}/{filenm} not found") 
+    os.chdir("../..")
+
+def fetch(species:str, exclude:list, mykey:str, fetch:int, verbose:bool):
     per_page = 100
-    url      = f"https://xeno-canto.org/api/3/recordings?query=sp:\"{species}\"&key={mykey}&per_page={per_page}"
+    baseurl  = f"https://xeno-canto.org/api/3/recordings?query=sp:\"{species}\"&key={mykey}&per_page={per_page}"
     countries = {}
     country = "cnt"
     sex     = 'sex'
@@ -12,8 +25,9 @@ def fetch(species:str, exclude:list, mykey:str, verbose:bool):
     recs    = "recordings"
     # We do not know how many recordings there are for each species, so use a while loop.
     page    = 0
-    response = requests.get(url)
+    response = requests.get(baseurl)
     data     = response.json()
+    nfetched = 0
     while page*per_page < int(data["numRecordings"]):
         if not recs in data:
             continue
@@ -33,8 +47,14 @@ def fetch(species:str, exclude:list, mykey:str, verbose:bool):
                     print("Unknown gender '%s'" % rec[sex])
             else:
                 sexes["empty"] += 1
+            # Now try and download if requested
+            if fetch == -1 or nfetched < fetch:
+                if rec[sex] in [ "male", "female" ]:
+                    download(rec["file"], rec["file-name"], species, rec[sex])
+                    nfetched += 1
         page    += 1
-        myurl    = url + f"&page={page}"
+        # URL for the next page to fetch
+        myurl    = baseurl + f"&page={page}"
         response = requests.get(myurl)
         data     = response.json()
     
@@ -46,7 +66,9 @@ def fetch(species:str, exclude:list, mykey:str, verbose:bool):
 
 def parse_args():
     parser  = argparse.ArgumentParser(description="""
-    Fetch data from https://xeno-canto.org and print information.
+    Collect data from [xeno-canto](https://xeno-canto.org) (XC) and print information.
+    Can now also download sound files, and will store them in directories
+    called species/sex (as specified on XC).
     """)
     
     defjson = "owls.json"
@@ -57,6 +79,8 @@ def parse_args():
     parser.add_argument("-key", "--key", help="API key for using xeno-canto (check your login page)",type=str, default=dvds)
     parser.add_argument("-v", "--verbose", help="Print more stuff", action="store_true")
     parser.add_argument("-dbg", "--debug", help="Print much more stuff", action="store_true")
+    nfetch = 0
+    parser.add_argument("-fetch", "--fetch", help="Download at most this many wav files per species and sex, -1 = all, default = "+str(nfetch), type=int, default=nfetch)
     args = parser.parse_args()
     return args
 
@@ -77,5 +101,6 @@ if __name__ == "__main__":
     if None == myspecies or len(myspecies) == 0:
         myspecies = myowls.keys()
     for owl in myspecies:
-        fetch(species=owl, exclude=myowls[owl], mykey=args.key, verbose=args.verbose)
+        fetch(species=owl, exclude=myowls[owl], mykey=args.key,
+              fetch=args.fetch, verbose=args.verbose)
 

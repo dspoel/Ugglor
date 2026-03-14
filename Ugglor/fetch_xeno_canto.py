@@ -74,7 +74,7 @@ if __name__ == "__main__":
             print(myowls)
     # Which species does the user want?
     myspecies = args.species
-    if len(myspecies) == 0:
+    if None == myspecies or len(myspecies) == 0:
         myspecies = myowls.keys()
     for owl in myspecies:
         fetch(species=owl, exclude=myowls[owl], mykey=args.key, verbose=args.verbose)

@@ -32,6 +32,7 @@ def fetch(species:str, exclude:list, mykey:str, fetch:int, verbose:bool):
     response   = requests.get(baseurl)
     data       = response.json()
     nfetched   = 0
+    allrecs    = []
     while page*per_page < int(data["numRecordings"]):
         if not recs in data:
             continue
@@ -57,14 +58,21 @@ def fetch(species:str, exclude:list, mykey:str, fetch:int, verbose:bool):
                     outfile = ("%s%05d.%s" % ( rec[sex], sexes[rec[sex]], rec["file-name"][-3:] ) )
                     if download(rec["file"], rec["file-name"], outfile, species, rec[sex], verbose):
                         nfetched += 1
+                        rec["outfile"] = outfile
+                        allrecs.append(rec)
         page    += 1
         # URL for the next page to fetch
         myurl    = baseurl + f"&page={page}"
         response = requests.get(myurl)
         data     = response.json()
     
-    print("Species: %s, #countries %d male: %d female: %d" % ( species, len(countries.keys()),
-                                                               sexes['male'], sexes['female']) )
+    recs = f"{species}/recordings.json"
+    with open(recs, "w") as outf:
+        json.dump(allrecs, outf, indent=4)
+    print("Species: %s, #countries %d male: %d female: %d metadata in %s" %
+          ( species, len(countries.keys()),
+            sexes['male'], sexes['female'], recs) )
+
     if verbose:
         print(countries)
         print(sexes)
